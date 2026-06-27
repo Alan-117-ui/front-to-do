@@ -1,0 +1,313 @@
+/* ==========================================================================
+   🧱 DISTRIBUCIÓN AVANZADA DE PANTALLA (Layout Tablero Moderno)
+   ========================================================================== */
+:root {
+  --bg-dark: #090d16;          /* Fondo general profundo */
+  --bg-sidebar: #111625;       /* Fondo del panel izquierdo */
+  --bg-card: #1b2234;          /* Fondo de las tarjetas de tareas */
+  --border-soft: #262f45;      /* Bordes sutiles modernos */
+  --primary-glow: #388bfd;     /* Azul interactivo */
+  --text-white: #f0f6fc;       /* Texto principal */
+  --text-gray: #8b949e;        /* Texto secundario */
+  
+  --color-pendiente: #f1e05a;  /* Amarillo para pendientes */
+  --color-progreso: #ff7b72;   /* Naranja/Rojo para en progreso */
+  --color-hecha: #56d364;      /* Verde para completadas */
+}
+
+/* Reinicio básico */
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-white);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Contenedor Principal que divide la pantalla en 2 secciones */
+.dashboard-container {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  min-height: 100vh;
+}
+
+/* Vista responsiva para pantallas pequeñas (celulares) */
+@media (max-width: 850px) {
+  .dashboard-container {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-soft);
+  }
+}
+
+/* ==========================================================================
+   🔹 PANEL LATERAL IZQUIERDO (Sidebar)
+   ========================================================================== */
+.sidebar {
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-soft);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-sizing: border-box;
+}
+
+/* Título de la App */
+.brand h1 {
+  font-size: 22px;
+  margin: 0 0 6px 0;
+  background: linear-gradient(90deg, #58a6ff, #bc8cff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+/* Indicador de Conexión */
+.status-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  display: inline-block;
+}
+.status-badge.online { background: rgba(86, 211, 100, 0.15); color: var(--color-hecha); }
+.status-badge.offline { background: rgba(255, 123, 114, 0.15); color: var(--color-progreso); }
+
+/* Tarjeta de Perfil */
+.profile-card-sidebar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+}
+
+.avatar-circle {
+  width: 44px;
+  height: 44px;
+  background: #79c0ff;
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.profile-details h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.profile-details p { margin: 2px 0; font-size: 12px; color: var(--text-gray); word-break: break-all; }
+.role-tag { font-size: 10px; background: #21262d; padding: 2px 6px; border-radius: 4px; color: #79c0ff; font-weight: 600; }
+
+.logout-mini-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-gray);
+  cursor: pointer;
+  font-size: 11px;
+  transition: color 0.2s;
+}
+.logout-mini-btn:hover { color: var(--color-progreso); }
+
+/* Caja del Formulario para crear tareas */
+.add-task-box h4 { margin: 0 0 12px 0; font-size: 14px; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px; }
+.add-grid { display: flex; flex-direction: column; gap: 12px; }
+.add-grid input, .add-grid textarea {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-soft);
+  color: #fff;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+.add-grid input:focus, .add-grid textarea:focus {
+  outline: none;
+  border-color: var(--primary-glow);
+}
+.btn-submit {
+  background: var(--primary-glow);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-submit:hover { background: #58a6ff; }
+
+
+/* ==========================================================================
+   🔹 ÁREA PRINCIPAL DERECHA (Contenido y Tablero)
+   ========================================================================== */
+.main-content {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  box-sizing: border-box;
+}
+
+/* Barra de Búsqueda Superior */
+.top-search-bar .search-input {
+  width: 100%;
+  max-width: 450px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-soft);
+  padding: 12px 20px;
+  border-radius: 24px;
+  color: white;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.top-search-bar .search-input:focus {
+  outline: none;
+  border-color: var(--primary-glow);
+  box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.2);
+}
+
+/* 📋 CONTENEDOR GRID DEL TABLERO KANBAN */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+/* Adaptación para pantallas medianas o tablets (apila las columnas verticalmente) */
+@media (max-width: 1100px) {
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Columnas individuales */
+.kanban-column {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 18px;
+  min-height: 450px;
+}
+
+/* Cabeceras de las columnas con sus respectivos colores */
+.column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--border-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.column-header.pendiente { border-bottom-color: var(--color-pendiente); color: var(--color-pendiente); }
+.column-header.progreso { border-bottom-color: var(--color-progreso); color: var(--color-progreso); }
+.column-header.completada { border-bottom-color: var(--color-hecha); color: var(--color-hecha); }
+
+.counter-badge {
+  background: var(--bg-card);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--text-white);
+  border: 1px solid var(--border-soft);
+}
+
+/* Espacio interno donde caen las tarjetas */
+.column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Tarjetas individuales de Tareas */
+.kanban-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s, border-color 0.2s;
+}
+.kanban-card:hover {
+  transform: translateY(-3px);
+  border-color: #444c56;
+}
+
+/* Variaciones visuales sutiles según estado */
+.kanban-card.in-progress {
+  border-left: 4px solid var(--color-progreso);
+}
+.kanban-card.finished {
+  border-left: 4px solid var(--color-hecha);
+  opacity: 0.85;
+}
+
+/* Controles dentro de las tarjetas */
+.status-select {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-soft);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.icon {
+  background: var(--bg-dark);
+  border: 1px solid var(--border-soft);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.icon:hover { background: #21262d; }
+.icon.danger:hover { background: rgba(255, 123, 114, 0.2); color: #ff7b72; border-color: #ff7b72; }
+
+.btn {
+  background: var(--primary-glow);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Estado vacío decorativo adentro de las columnas */
+.empty-ghost {
+  text-align: center;
+  color: var(--text-gray);
+  font-size: 13px;
+  padding: 40px 0;
+  border: 2px dashed var(--border-soft);
+  border-radius: 8px;
+}
+
+/* Mensaje global de "Sin tareas" */
+.empty {
+  text-align: center;
+  color: var(--text-gray);
+  padding: 60px 0;
+  font-size: 16px;
+  font-weight: 500;
+}
