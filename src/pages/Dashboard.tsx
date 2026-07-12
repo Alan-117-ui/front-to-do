@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { api, setAuth } from "../api";
 import {
@@ -33,13 +34,28 @@ type UserProfile = {
   id?: string;
 };
 
+type ColumnConfig = {
+  status: Status;
+  title: string;
+  empty: string;
+  tone: "pending" | "progress" | "done";
+};
+
+const ADMIN_EMAIL = "alanmorales117@gmail.com";
+
 const DEFAULT_USER: UserProfile = {
   id: "12345",
-  name: "Alan M.",
-  email: "alan.m@tuinstitucion.com",
-  role: "Estudiante",
+  name: "Morales",
+  email: ADMIN_EMAIL,
+  role: "admin",
   createdAt: "2026-06-19T12:00:00.000Z",
 };
+
+const COLUMNS: ColumnConfig[] = [
+  { status: "Pendiente", title: "Pendientes", empty: "Sin pendientes", tone: "pending" },
+  { status: "En Progreso", title: "En progreso", empty: "Sin actividad", tone: "progress" },
+  { status: "Completada", title: "Hechas", empty: "Nada completado", tone: "done" },
+];
 
 const isLocalId = (id: string) => !/^[a-f0-9]{24}$/i.test(id);
 
@@ -80,6 +96,11 @@ function readTasksResponse(data: unknown) {
 
 function normalizeUser(value: unknown): UserProfile {
   const record = asRecord(value);
+  const email =
+    readString(record.email) ||
+    readString(record.mail) ||
+    readString(record.correo) ||
+    DEFAULT_USER.email;
 
   return {
     id: readString(record._id) || readString(record.id),
@@ -88,12 +109,8 @@ function normalizeUser(value: unknown): UserProfile {
       readString(record.username) ||
       readString(record.usuario) ||
       DEFAULT_USER.name,
-    email:
-      readString(record.email) ||
-      readString(record.mail) ||
-      readString(record.correo) ||
-      DEFAULT_USER.email,
-    role: readString(record.role) || "Miembro",
+    email,
+    role: email.toLowerCase() === ADMIN_EMAIL ? "admin" : readString(record.role) || "Miembro",
     createdAt: readString(record.createdAt),
   };
 }
@@ -110,9 +127,17 @@ function getTimestamp() {
   return Date.now();
 }
 
+function getStatusTone(status: Status) {
+  if (status === "Completada") return "done";
+  if (status === "En Progreso") return "progress";
+  return "pending";
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [notice, setNotice] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [online, setOnline] = useState<boolean>(navigator.onLine);
   const [user, setUser] = useState<UserProfile | null>(DEFAULT_USER);
@@ -124,6 +149,11 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
+
+  const showNotice = useCallback((message: string) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(""), 2600);
+  }, []);
 
   const loadUserProfile = useCallback(async () => {
     try {
@@ -140,7 +170,7 @@ export default function Dashboard() {
         }
       }
     } catch {
-      // Se conserva el perfil local si el servidor no responde.
+      // Mantiene el perfil local si no hay respuesta del servidor.
     }
   }, []);
 
@@ -151,7 +181,7 @@ export default function Dashboard() {
       setTasks(list);
       await cacheTasks(list);
     } catch {
-      // El cache local mantiene el dashboard usable cuando no hay conexion.
+      // El cache local mantiene el tablero usable sin conexion.
     } finally {
       setLoading(false);
     }
@@ -165,8 +195,12 @@ export default function Dashboard() {
       await syncNow();
       await loadFromServer();
       await loadUserProfile();
+      showNotice("Conexion recuperada. Tablero actualizado.");
     };
-    const handleOffline = () => setOnline(false);
+    const handleOffline = () => {
+      setOnline(false);
+      showNotice("Estas offline. Los cambios se guardaran localmente.");
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -184,7 +218,19 @@ export default function Dashboard() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [loadFromServer, loadUserProfile]);
+  }, [loadFromServer, loadUserProfile, showNotice]);
+
+  async function refreshDashboard() {
+    setRefreshing(true);
+    try {
+      await syncNow();
+      await loadFromServer();
+      await loadUserProfile();
+      showNotice(online ? "Tablero actualizado." : "Estas offline. Mostrando datos locales.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function addTask(newTitle: string, newDescription: string) {
     const cleanTitle = newTitle.trim();
@@ -213,6 +259,7 @@ export default function Dashboard() {
 
     if (!navigator.onLine) {
       await queue(op);
+      showNotice("Tarea guardada localmente.");
       return;
     }
 
@@ -225,11 +272,13 @@ export default function Dashboard() {
       setTasks((prev) => prev.map((item) => (item._id === clienteId ? created : item)));
       await removeTaskLocal(clienteId);
       await putTaskLocal(created);
+      showNotice("Tarea agregada.");
     } catch {
       await queue(op);
       setTasks((prev) =>
         prev.map((item) => (item._id === clienteId ? { ...item, pending: true } : item))
       );
+      showNotice("No hubo conexion. Se sincronizara despues.");
     }
   }
 
@@ -262,6 +311,7 @@ export default function Dashboard() {
 
     if (!navigator.onLine) {
       await queue(op);
+      showNotice("Edicion guardada localmente.");
       return;
     }
 
@@ -270,11 +320,13 @@ export default function Dashboard() {
         title: cleanTitle,
         description: cleanDescription,
       });
+      showNotice("Tarea actualizada.");
     } catch {
       await queue(op);
       setTasks((prev) =>
         prev.map((item) => (item._id === taskId ? { ...item, pending: true } : item))
       );
+      showNotice("Edicion pendiente de sincronizar.");
     }
   }
 
@@ -294,16 +346,19 @@ export default function Dashboard() {
 
     if (!navigator.onLine) {
       await queue(op);
+      showNotice("Estado guardado localmente.");
       return;
     }
 
     try {
       await api.put(`/tasks/${task._id}`, { status: newStatus });
+      showNotice("Estado actualizado.");
     } catch {
       await queue(op);
       setTasks((prev) =>
         prev.map((item) => (item._id === task._id ? { ...item, pending: true } : item))
       );
+      showNotice("Estado pendiente de sincronizar.");
     }
   }
 
@@ -322,15 +377,18 @@ export default function Dashboard() {
 
     if (!navigator.onLine) {
       await queue(op);
+      showNotice("Tarea eliminada localmente.");
       return;
     }
 
     try {
       await api.delete(`/tasks/${taskId}`);
+      showNotice("Tarea eliminada.");
     } catch {
       setTasks(backup);
       for (const task of backup) await putTaskLocal(task);
       await queue(op);
+      showNotice("No se pudo eliminar. Se reintentara despues.");
     }
   }
 
@@ -344,9 +402,12 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const total = tasks.length;
     const done = tasks.filter((task) => task.status === "Completada").length;
+    const progress = tasks.filter((task) => task.status === "En Progreso").length;
+    const pending = tasks.filter((task) => task.status === "Pendiente").length;
     const efficiency = total > 0 ? Math.round((done / total) * 100) : 0;
+    const syncPending = tasks.filter((task) => task.pending || isLocalId(task._id)).length;
 
-    return { total, done, pending: total - done, efficiency };
+    return { total, done, progress, pending, efficiency, syncPending };
   }, [tasks]);
 
   const filtered = useMemo(() => {
@@ -365,14 +426,25 @@ export default function Dashboard() {
     return list;
   }, [tasks, search, filter]);
 
-  const pendingTasks = useMemo(() => filtered.filter((task) => task.status === "Pendiente"), [filtered]);
-  const progressTasks = useMemo(() => filtered.filter((task) => task.status === "En Progreso"), [filtered]);
-  const completedTasks = useMemo(() => filtered.filter((task) => task.status === "Completada"), [filtered]);
+  const groupedTasks = useMemo(
+    () => ({
+      Pendiente: filtered.filter((task) => task.status === "Pendiente"),
+      "En Progreso": filtered.filter((task) => task.status === "En Progreso"),
+      Completada: filtered.filter((task) => task.status === "Completada"),
+    }),
+    [filtered]
+  );
 
   const userInitial = useMemo(
     () => (user?.name ? user.name.charAt(0).toUpperCase() : "?"),
     [user]
   );
+  const firstName = useMemo(() => user?.name?.split(" ")[0] || DEFAULT_USER.name, [user]);
+  const isAdmin = useMemo(() => {
+    const role = (user?.role || "").toLowerCase();
+    const email = (user?.email || "").toLowerCase();
+    return role.includes("admin") || email === ADMIN_EMAIL;
+  }, [user]);
 
   const handleAddTask = (event: React.FormEvent) => {
     event.preventDefault();
@@ -388,36 +460,45 @@ export default function Dashboard() {
     setEditingDescription(task.description ?? "");
   };
 
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingTitle("");
+    setEditingDescription("");
+  };
+
   const handleSaveEdit = (taskId: string) => {
     if (!editingTitle.trim()) return;
     void saveEdit(taskId, editingTitle, editingDescription);
-    setEditingId(null);
+    cancelEdit();
   };
 
   const renderTaskContent = (task: Task) => {
     const isCompleted = task.status === "Completada";
+    const nextStatus = isCompleted ? "Pendiente" : "Completada";
 
     return (
       <>
-        <div className="card-top-actions">
-          <select
-            value={task.status}
-            onChange={(event) => void handleStatusChange(task, event.target.value as Status)}
-            className="status-select"
-            title="Estado"
-          >
-            <option value="Pendiente">Pendiente</option>
-            <option value="En Progreso">En Progreso</option>
-            <option value="Completada">Completada</option>
-          </select>
+        <div className="task-card-header">
+          <div className={`status-pill ${getStatusTone(task.status)}`}>
+            <span className="status-dot" />
+            <select
+              value={task.status}
+              onChange={(event) => void handleStatusChange(task, event.target.value as Status)}
+              className="status-select"
+              title="Estado"
+            >
+              <option value="Pendiente">Pendiente</option>
+              <option value="En Progreso">En Progreso</option>
+              <option value="Completada">Completada</option>
+            </select>
+          </div>
         </div>
 
-        <div className="content" style={{ margin: "10px 0" }}>
+        <div className="task-card-content">
           {editingId === task._id ? (
-            <>
+            <div className="edit-stack">
               <input
                 className="edit"
-                style={{ width: "100%", marginBottom: "5px", padding: "6px", background: "var(--bg-dark)", border: "1px solid var(--border-soft)", color: "#fff", borderRadius: "4px" }}
                 value={editingTitle}
                 onChange={(event) => setEditingTitle(event.target.value)}
                 placeholder="Titulo"
@@ -425,56 +506,52 @@ export default function Dashboard() {
               />
               <textarea
                 className="edit"
-                style={{ width: "100%", padding: "6px", background: "var(--bg-dark)", border: "1px solid var(--border-soft)", color: "#fff", borderRadius: "4px" }}
                 value={editingDescription}
                 onChange={(event) => setEditingDescription(event.target.value)}
                 placeholder="Descripcion"
-                rows={2}
+                rows={3}
               />
-            </>
+            </div>
           ) : (
             <>
-              <span
-                className="title"
-                style={{
-                  display: "block",
-                  fontWeight: "bold",
-                  textDecoration: isCompleted ? "line-through" : "none",
-                  color: isCompleted ? "var(--text-gray)" : "inherit",
-                }}
-                onDoubleClick={() => startEdit(task)}
-              >
-                {task.title}
-              </span>
-              {task.description && (
-                <p className="desc" style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-gray)" }}>
-                  {task.description}
-                </p>
-              )}
-              {(task.pending || isLocalId(task._id)) && (
-                <span
-                  className="badge"
-                  title="Aun no sincronizada"
-                  style={{ background: "#b45309", width: "fit-content", fontSize: "10px", padding: "2px 6px", borderRadius: "4px", display: "inline-block", marginTop: "6px", fontWeight: "bold", color: "#fff" }}
-                >
-                  Falta sincronizar
+              <button className="task-title-button" type="button" onDoubleClick={() => startEdit(task)}>
+                <span className={isCompleted ? "task-title completed" : "task-title"}>
+                  {task.title}
                 </span>
+              </button>
+              {task.description && <p className="desc">{task.description}</p>}
+              {(task.pending || isLocalId(task._id)) && (
+                <span className="badge sync-badge">Falta sincronizar</span>
               )}
             </>
           )}
         </div>
 
-        <div className="actions" style={{ display: "flex", justifyContent: "flex-end", gap: "8px", borderTop: "1px solid var(--border-soft)", paddingTop: "8px" }}>
+        <div className="task-card-actions">
           {editingId === task._id ? (
-            <button className="btn" style={{ padding: "4px 10px", fontSize: "12px" }} onClick={() => handleSaveEdit(task._id)}>
-              Guardar
-            </button>
+            <>
+              <button className="btn compact" type="button" onClick={() => handleSaveEdit(task._id)}>
+                Guardar
+              </button>
+              <button className="icon" type="button" onClick={cancelEdit}>
+                Cancelar
+              </button>
+            </>
           ) : (
-            <button className="icon" title="Editar" onClick={() => startEdit(task)}>
-              Editar
-            </button>
+            <>
+              <button className="icon" type="button" onClick={() => startEdit(task)}>
+                Editar
+              </button>
+              <button
+                className="icon"
+                type="button"
+                onClick={() => void handleStatusChange(task, nextStatus)}
+              >
+                {isCompleted ? "Reabrir" : "Completar"}
+              </button>
+            </>
           )}
-          <button className="icon danger" title="Eliminar" onClick={() => void removeTask(task._id)}>
+          <button className="icon danger" type="button" onClick={() => void removeTask(task._id)}>
             Eliminar
           </button>
         </div>
@@ -485,11 +562,20 @@ export default function Dashboard() {
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
-        <div className="brand">
-          <h1>To-Do PWA</h1>
-          <span className={`status-badge ${online ? "online" : "offline"}`}>
-            {online ? "Online" : "Offline"}
-          </span>
+        <div className="brand-block">
+          <div className="brand-mark">TD</div>
+          <div className="brand-copy">
+            <span>Tablero personal</span>
+            <h1>To-Do PWA</h1>
+          </div>
+        </div>
+
+        <div className={`connection-card ${online ? "online" : "offline"}`}>
+          <span className="connection-dot" />
+          <div>
+            <strong>{online ? "Online" : "Offline"}</strong>
+            <p>{online ? "Sincronizacion activa" : "Guardando cambios locales"}</p>
+          </div>
         </div>
 
         <div className="profile-card-sidebar">
@@ -499,61 +585,116 @@ export default function Dashboard() {
             <p>{user?.email || DEFAULT_USER.email}</p>
             <span className="role-tag">{user?.role || DEFAULT_USER.role}</span>
           </div>
-          <button onClick={logout} className="logout-mini-btn" title="Cerrar Sesion">
-            x
+          <button onClick={logout} className="logout-mini-btn" title="Cerrar sesion">
+            Salir
           </button>
         </div>
 
-        <div style={{ backgroundColor: "var(--bg-dark)", border: "1px solid var(--border-soft)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "6px", fontSize: "12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-gray)" }}>Total:</span>
-            <span>{stats.total}</span>
+        {isAdmin && (
+          <Link className="admin-entry" to="/admin">
+            <span>Panel admin</span>
+            <strong>Usuarios, roles y bloqueos</strong>
+          </Link>
+        )}
+
+        <div className="sidebar-panel">
+          <div className="panel-title">
+            <span>Avance</span>
+            <strong>{stats.efficiency}%</strong>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-gray)" }}>Hechas:</span>
-            <span style={{ color: "var(--color-hecha)" }}>{stats.done}</span>
+          <div className="progress-track">
+            <span style={{ width: `${stats.efficiency}%` }} />
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-gray)" }}>Pendientes:</span>
-            <span style={{ color: "var(--color-pendiente)" }}>{stats.pending}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--text-gray)" }}>Eficiencia:</span>
-            <span style={{ color: "var(--primary-glow)", fontWeight: "bold" }}>{stats.efficiency}%</span>
+          <div className="mini-stats">
+            <span>{stats.pending} pendientes</span>
+            <span>{stats.progress} en curso</span>
+            <span>{stats.done} hechas</span>
           </div>
         </div>
 
         <div className="add-task-box">
-          <h4>Nueva Tarea</h4>
+          <div className="section-heading">
+            <h2>Nueva tarea</h2>
+            <p>Agrega una actividad rapida al tablero.</p>
+          </div>
           <form className="add-grid" onSubmit={handleAddTask}>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Titulo de la tarea..."
+              placeholder="Titulo de la tarea"
+              aria-label="Titulo de la tarea"
             />
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Descripcion (opcional)..."
-              rows={3}
+              placeholder="Descripcion opcional"
+              aria-label="Descripcion opcional"
+              rows={4}
             />
             <button type="submit" className="btn-submit">
-              Agregar Actividad
+              Agregar actividad
             </button>
           </form>
         </div>
       </aside>
 
       <main className="main-content">
-        <header className="top-search-bar" style={{ display: "flex", gap: "15px", alignItems: "center", justifyContent: "space-between" }}>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Buscar por titulo o descripcion..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <div className="filters" style={{ display: "flex", gap: "6px" }}>
+        <section className="dashboard-hero">
+          <div>
+            <span className="eyebrow">Hola, {firstName}</span>
+            <h2>Organiza tu dia con claridad.</h2>
+            <p>
+              Revisa prioridades, cambia estados y sincroniza tus tareas desde un
+              solo tablero.
+            </p>
+          </div>
+          <button
+            className="btn secondary"
+            type="button"
+            onClick={() => void refreshDashboard()}
+            disabled={refreshing}
+          >
+            {refreshing ? "Actualizando..." : "Sincronizar"}
+          </button>
+        </section>
+
+        <section className="metric-grid">
+          <article className="metric-card">
+            <span>Total</span>
+            <strong>{stats.total}</strong>
+            <p>Tareas registradas</p>
+          </article>
+          <article className="metric-card accent-pending">
+            <span>Pendientes</span>
+            <strong>{stats.pending}</strong>
+            <p>Por iniciar</p>
+          </article>
+          <article className="metric-card accent-progress">
+            <span>En curso</span>
+            <strong>{stats.progress}</strong>
+            <p>En movimiento</p>
+          </article>
+          <article className="metric-card accent-done">
+            <span>Hechas</span>
+            <strong>{stats.done}</strong>
+            <p>{stats.syncPending} pendientes de sync</p>
+          </article>
+        </section>
+
+        {notice && <div className="notice">{notice}</div>}
+
+        <section className="board-toolbar">
+          <div className="search-wrap">
+            <span>Buscar</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Titulo o descripcion"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <div className="filters">
             <button className={filter === "all" ? "chip active" : "chip"} onClick={() => setFilter("all")} type="button">
               Todas
             </button>
@@ -563,70 +704,46 @@ export default function Dashboard() {
             <button className={filter === "completed" ? "chip active" : "chip"} onClick={() => setFilter("completed")} type="button">
               Hechas
             </button>
+            {search && (
+              <button className="chip subtle" onClick={() => setSearch("")} type="button">
+                Limpiar
+              </button>
+            )}
           </div>
-        </header>
+        </section>
 
         {loading ? (
-          <p style={{ textAlign: "center", color: "var(--text-gray)", padding: "40px" }}>
-            Cargando actividades...
-          </p>
+          <div className="empty-state">Cargando actividades...</div>
         ) : filtered.length === 0 ? (
-          <p className="empty">Sin tareas en este filtro</p>
+          <div className="empty-state">
+            <strong>Sin tareas en este filtro</strong>
+            <p>Cambia el filtro o crea una tarea nueva desde el panel lateral.</p>
+          </div>
         ) : (
           <div className="kanban-board">
-            <div className="kanban-column">
-              <div className="column-header pendiente">
-                <span>Pendientes</span>
-                <span className="counter-badge">{pendingTasks.length}</span>
-              </div>
-              <div className="column-body">
-                {pendingTasks.length === 0 ? (
-                  <div className="empty-ghost">Sin pendientes</div>
-                ) : (
-                  pendingTasks.map((task) => (
-                    <div key={task._id} className="kanban-card">
-                      {renderTaskContent(task)}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            {COLUMNS.map((column) => {
+              const list = groupedTasks[column.status];
 
-            <div className="kanban-column">
-              <div className="column-header progreso">
-                <span>En Progreso</span>
-                <span className="counter-badge">{progressTasks.length}</span>
-              </div>
-              <div className="column-body">
-                {progressTasks.length === 0 ? (
-                  <div className="empty-ghost">Sin actividad</div>
-                ) : (
-                  progressTasks.map((task) => (
-                    <div key={task._id} className="kanban-card in-progress">
-                      {renderTaskContent(task)}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="kanban-column">
-              <div className="column-header completada">
-                <span>Hechas</span>
-                <span className="counter-badge">{completedTasks.length}</span>
-              </div>
-              <div className="column-body">
-                {completedTasks.length === 0 ? (
-                  <div className="empty-ghost">Nada completado</div>
-                ) : (
-                  completedTasks.map((task) => (
-                    <div key={task._id} className="kanban-card finished">
-                      {renderTaskContent(task)}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+              return (
+                <section className={`kanban-column ${column.tone}`} key={column.status}>
+                  <div className="column-header">
+                    <span>{column.title}</span>
+                    <span className="counter-badge">{list.length}</span>
+                  </div>
+                  <div className="column-body">
+                    {list.length === 0 ? (
+                      <div className="empty-ghost">{column.empty}</div>
+                    ) : (
+                      list.map((task) => (
+                        <article key={task._id} className={`kanban-card ${getStatusTone(task.status)}`}>
+                          {renderTaskContent(task)}
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
       </main>
