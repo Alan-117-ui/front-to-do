@@ -503,11 +503,16 @@ body {
 .kanban-column {
   min-height: 480px;
   padding: 14px;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
 .kanban-column.pending { border-top: 4px solid var(--amber); }
 .kanban-column.progress { border-top: 4px solid var(--orange); }
 .kanban-column.done { border-top: 4px solid var(--green); }
+.kanban-column.drop-ready {
+  border-color: rgba(115, 214, 191, 0.55);
+  background: rgba(31, 111, 98, 0.16);
+}
 
 .column-header {
   display: flex;
@@ -515,12 +520,25 @@ body {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+  padding: 10px 12px;
   color: var(--text);
+  border-radius: 8px;
+  background: #111318;
   font-size: 14px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+.kanban-column.pending .column-header,
+.kanban-column.progress .column-header,
+.kanban-column.done .column-header {
+  color: #07110f;
+}
+
+.kanban-column.pending .column-header { background: var(--amber); }
+.kanban-column.progress .column-header { background: var(--orange); }
+.kanban-column.done .column-header { background: var(--green); }
 
 .counter-badge {
   display: inline-flex;
@@ -536,6 +554,14 @@ body {
   font-size: 12px;
 }
 
+.kanban-column.pending .counter-badge,
+.kanban-column.progress .counter-badge,
+.kanban-column.done .counter-badge {
+  color: #07110f;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(7, 17, 15, 0.22);
+}
+
 .column-body {
   display: grid;
   gap: 12px;
@@ -547,12 +573,26 @@ body {
   padding: 14px;
   border-left: 4px solid var(--amber);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+  cursor: grab;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
 }
 
 .kanban-card.progress { border-left-color: var(--orange); }
 .kanban-card.done {
   border-left-color: var(--green);
   opacity: 0.86;
+}
+
+.kanban-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
+}
+
+.kanban-card.dragging {
+  opacity: 0.52;
+  cursor: grabbing;
+  transform: scale(0.98);
+  outline: 2px solid var(--teal);
 }
 
 .task-card-header {
@@ -568,26 +608,28 @@ body {
   width: 100%;
   padding: 7px 9px;
   border-radius: 8px;
-  background: #111318;
-  border: 1px solid var(--line);
+  background: var(--amber);
+  border: 1px solid rgba(7, 17, 15, 0.2);
 }
 
 .status-dot {
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: var(--amber);
+  background: #07110f;
 }
 
-.status-pill.progress .status-dot { background: var(--orange); }
-.status-pill.done .status-dot { background: var(--green); }
+.status-pill.progress { background: var(--orange); }
+.status-pill.done { background: var(--green); }
+.status-pill.progress .status-dot,
+.status-pill.done .status-dot { background: #07110f; }
 
 .status-select {
   min-height: 28px;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: #07110f;
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
@@ -611,6 +653,7 @@ body {
 .task-title {
   display: block;
   overflow-wrap: anywhere;
+  color: #ffffff;
   font-size: 16px;
   font-weight: 900;
   line-height: 1.35;

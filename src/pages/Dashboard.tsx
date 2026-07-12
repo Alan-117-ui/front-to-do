@@ -149,6 +149,7 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDescription, setEditingDescription] = useState("");
+  const [draggingId, setDraggingId] = useState("");
 
   const showNotice = useCallback((message: string) => {
     setNotice(message);
@@ -363,7 +364,6 @@ export default function Dashboard() {
   }
 
   async function removeTask(taskId: string) {
-    const backup = tasks;
     setTasks((prev) => prev.filter((item) => item._id !== taskId));
     await removeTaskLocal(taskId);
 
@@ -375,7 +375,7 @@ export default function Dashboard() {
       ts: getTimestamp(),
     };
 
-    if (!navigator.onLine) {
+    if (!navigator.onLine || isLocalId(taskId)) {
       await queue(op);
       showNotice("Tarea eliminada localmente.");
       return;
@@ -385,10 +385,8 @@ export default function Dashboard() {
       await api.delete(`/tasks/${taskId}`);
       showNotice("Tarea eliminada.");
     } catch {
-      setTasks(backup);
-      for (const task of backup) await putTaskLocal(task);
       await queue(op);
-      showNotice("No se pudo eliminar. Se reintentara despues.");
+      showNotice("Tarea eliminada. Se sincronizara despues.");
     }
   }
 
@@ -470,6 +468,28 @@ export default function Dashboard() {
     if (!editingTitle.trim()) return;
     void saveEdit(taskId, editingTitle, editingDescription);
     cancelEdit();
+  };
+
+  const startDragTask = (event: React.DragEvent<HTMLElement>, taskId: string) => {
+    setDraggingId(taskId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", taskId);
+  };
+
+  const allowTaskDrop = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const dropTaskInColumn = (event: React.DragEvent<HTMLElement>, status: Status) => {
+    event.preventDefault();
+    const taskId = event.dataTransfer.getData("text/plain") || draggingId;
+    const task = tasks.find((item) => item._id === taskId);
+
+    setDraggingId("");
+    if (!task || task.status === status) return;
+
+    void handleStatusChange(task, status);
   };
 
   const renderTaskContent = (task: Task) => {
@@ -725,7 +745,12 @@ export default function Dashboard() {
               const list = groupedTasks[column.status];
 
               return (
-                <section className={`kanban-column ${column.tone}`} key={column.status}>
+                <section
+                  className={`kanban-column ${column.tone} ${draggingId ? "drop-ready" : ""}`}
+                  key={column.status}
+                  onDragOver={allowTaskDrop}
+                  onDrop={(event) => dropTaskInColumn(event, column.status)}
+                >
                   <div className="column-header">
                     <span>{column.title}</span>
                     <span className="counter-badge">{list.length}</span>
@@ -735,7 +760,13 @@ export default function Dashboard() {
                       <div className="empty-ghost">{column.empty}</div>
                     ) : (
                       list.map((task) => (
-                        <article key={task._id} className={`kanban-card ${getStatusTone(task.status)}`}>
+                        <article
+                          key={task._id}
+                          className={`kanban-card ${getStatusTone(task.status)} ${draggingId === task._id ? "dragging" : ""}`}
+                          draggable={editingId !== task._id}
+                          onDragStart={(event) => startDragTask(event, task._id)}
+                          onDragEnd={() => setDraggingId("")}
+                        >
                           {renderTaskContent(task)}
                         </article>
                       ))
