@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, setAuth } from "../api";
 import "../App.css";
@@ -155,8 +155,7 @@ async function patchAdminUser(userId: string, payload: Partial<AdminUser>) {
 
 export default function AdminPanel() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<AdminUser[]>(() => loadCachedUsers());
   const [refreshing, setRefreshing] = useState(false);
   const [savingId, setSavingId] = useState("");
   const [search, setSearch] = useState("");
@@ -177,12 +176,8 @@ export default function AdminPanel() {
     window.setTimeout(() => setNotice(""), 2800);
   }, []);
 
-  const loadUsers = useCallback(async (showFullLoading = false) => {
-    if (showFullLoading) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
+  const loadUsers = useCallback(async () => {
+    setRefreshing(true);
     setAuth(localStorage.getItem("token"));
 
     try {
@@ -196,18 +191,9 @@ export default function AdminPanel() {
       setLocalMode(true);
       showNotice("Modo local: conecta las rutas admin del backend para aplicar bloqueos reales.");
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, [showNotice]);
-
-  useEffect(() => {
-    const firstLoad = window.setTimeout(() => void loadUsers(true), 0);
-
-    return () => {
-      window.clearTimeout(firstLoad);
-    };
-  }, [loadUsers]);
 
   const stats = useMemo(() => {
     const total = users.length;
@@ -387,8 +373,8 @@ export default function AdminPanel() {
               Bannea, bloquea, cambia roles y revisa quien esta online o activo.
             </p>
           </div>
-          <button className="btn secondary" type="button" onClick={() => void loadUsers(false)} disabled={refreshing}>
-            {refreshing ? "Actualizando..." : "Actualizar"}
+          <button className="btn secondary" type="button" onClick={() => void loadUsers()} disabled={refreshing}>
+            {refreshing ? "Actualizando..." : "Actualizar usuarios"}
           </button>
         </section>
 
@@ -435,12 +421,10 @@ export default function AdminPanel() {
             <strong>{filteredUsers.length} visibles</strong>
           </div>
 
-          {loading ? (
-            <div className="empty-state">Cargando usuarios...</div>
-          ) : filteredUsers.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <div className="empty-state">
               <strong>No hay usuarios en este filtro</strong>
-              <p>Prueba con otro filtro o actualiza la lista.</p>
+              <p>Prueba con otro filtro o usa Actualizar usuarios cuando quieras consultar el backend.</p>
             </div>
           ) : (
             <div className="admin-user-list">
