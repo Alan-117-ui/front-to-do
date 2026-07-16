@@ -157,6 +157,7 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [savingId, setSavingId] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "online" | "active" | "blocked" | "banned">("all");
@@ -176,8 +177,12 @@ export default function AdminPanel() {
     window.setTimeout(() => setNotice(""), 2800);
   }, []);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
+  const loadUsers = useCallback(async (showFullLoading = false) => {
+    if (showFullLoading) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setAuth(localStorage.getItem("token"));
 
     try {
@@ -192,16 +197,15 @@ export default function AdminPanel() {
       showNotice("Modo local: conecta las rutas admin del backend para aplicar bloqueos reales.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [showNotice]);
 
   useEffect(() => {
-    const firstLoad = window.setTimeout(() => void loadUsers(), 0);
-    const timer = window.setInterval(() => void loadUsers(), 20000);
+    const firstLoad = window.setTimeout(() => void loadUsers(true), 0);
 
     return () => {
       window.clearTimeout(firstLoad);
-      window.clearInterval(timer);
     };
   }, [loadUsers]);
 
@@ -383,8 +387,8 @@ export default function AdminPanel() {
               Bannea, bloquea, cambia roles y revisa quien esta online o activo.
             </p>
           </div>
-          <button className="btn secondary" type="button" onClick={() => void loadUsers()}>
-            Actualizar
+          <button className="btn secondary" type="button" onClick={() => void loadUsers(false)} disabled={refreshing}>
+            {refreshing ? "Actualizando..." : "Actualizar"}
           </button>
         </section>
 
