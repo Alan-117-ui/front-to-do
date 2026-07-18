@@ -130,23 +130,28 @@ async function getAdminUsersFromApi() {
   throw lastError;
 }
 
-async function patchAdminUser(userId: string, payload: Partial<AdminUser>) {
+async function patchAdminUser(userId: string, payload: Record<string, unknown>) {
   const endpoints = [`/admin/users/${userId}`, `/users/${userId}`, `/auth/users/${userId}`];
+  const bodies = [payload, { user: payload }, { updates: payload }];
   let lastError: unknown;
 
   for (const endpoint of endpoints) {
-    try {
-      await api.patch(endpoint, payload);
-      return;
-    } catch {
-      // Si PATCH no existe, intentamos PUT en el mismo endpoint.
+    for (const body of bodies) {
+      try {
+        await api.patch(endpoint, body);
+        return;
+      } catch (error: unknown) {
+        lastError = error;
+      }
     }
 
-    try {
-      await api.put(endpoint, payload);
-      return;
-    } catch (error: unknown) {
-      lastError = error;
+    for (const body of bodies) {
+      try {
+        await api.put(endpoint, body);
+        return;
+      } catch (error: unknown) {
+        lastError = error;
+      }
     }
   }
 
@@ -259,6 +264,7 @@ export default function AdminPanel() {
 
     setSavingId(user.id);
     setUsers(nextUsers);
+    saveCachedUsers(nextUsers);
 
     try {
       if (!localMode) {
@@ -267,15 +273,15 @@ export default function AdminPanel() {
           active: next.active,
           banned: next.banned,
           blocked: next.blocked,
+          isBanned: next.banned,
+          isBlocked: next.blocked,
           online: next.online,
         });
       }
-      saveCachedUsers(nextUsers);
       showNotice("Usuario actualizado.");
     } catch {
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? user : item)));
-      saveCachedUsers(users);
-      showNotice("El backend no acepto la accion. Revisa las rutas de administracion.");
+      setLocalMode(true);
+      showNotice("Cambio guardado en modo local. El backend no acepto la accion todavia.");
     } finally {
       setSavingId("");
     }
@@ -315,6 +321,7 @@ export default function AdminPanel() {
 
     setSavingId(user.id);
     setUsers(nextUsers);
+    saveCachedUsers(nextUsers);
 
     try {
       if (!localMode) {
@@ -325,12 +332,12 @@ export default function AdminPanel() {
         });
       }
 
-      saveCachedUsers(nextUsers);
       showNotice("Datos del usuario actualizados.");
       cancelEditUser();
     } catch {
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? user : item)));
-      showNotice("No se pudieron guardar los datos en el backend.");
+      setLocalMode(true);
+      showNotice("Datos guardados en modo local. El backend no acepto la edicion todavia.");
+      cancelEditUser();
     } finally {
       setSavingId("");
     }
