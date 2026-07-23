@@ -143,6 +143,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<UserProfile | null>(DEFAULT_USER);
 
   const [title, setTitle] = useState("");
+  const [titleError, setTitleError] = useState("");
   const [description, setDescription] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
@@ -236,7 +237,10 @@ export default function Dashboard() {
   async function addTask(newTitle: string, newDescription: string) {
     const cleanTitle = newTitle.trim();
     const cleanDescription = newDescription.trim();
-    if (!cleanTitle) return;
+    if (!cleanTitle) {
+      showNotice("No se agrego la tarea: falta el titulo.");
+      return;
+    }
 
     const clienteId = getLocalId();
     const localTask = normalizeTask({
@@ -458,7 +462,13 @@ export default function Dashboard() {
 
   const handleAddTask = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setTitleError("Agrega un titulo para poder crear la tarea.");
+      showNotice("No se agrego la tarea: falta el titulo.");
+      return;
+    }
+
+    setTitleError("");
     void addTask(title, description);
     setTitle("");
     setDescription("");
@@ -477,7 +487,11 @@ export default function Dashboard() {
   };
 
   const handleSaveEdit = (taskId: string) => {
-    if (!editingTitle.trim()) return;
+    if (!editingTitle.trim()) {
+      showNotice("Agrega un titulo para guardar la tarea.");
+      return;
+    }
+
     void saveEdit(taskId, editingTitle, editingDescription);
     cancelEdit();
   };
@@ -652,10 +666,20 @@ export default function Dashboard() {
           <form className="add-grid" onSubmit={handleAddTask}>
             <input
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                if (titleError) setTitleError("");
+              }}
               placeholder="Titulo de la tarea"
               aria-label="Titulo de la tarea"
+              aria-invalid={Boolean(titleError)}
+              aria-describedby={titleError ? "task-title-error" : undefined}
             />
+            {titleError && (
+              <p className="field-error" id="task-title-error">
+                {titleError}
+              </p>
+            )}
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
