@@ -276,9 +276,11 @@ export default function Dashboard() {
       showNotice("Tarea agregada.");
     } catch {
       await queue(op);
+      const pendingTask = { ...localTask, pending: true };
       setTasks((prev) =>
-        prev.map((item) => (item._id === clienteId ? { ...item, pending: true } : item))
+        prev.map((item) => (item._id === clienteId ? pendingTask : item))
       );
+      await putTaskLocal(pendingTask);
       showNotice("No hubo conexion. Se sincronizara despues.");
     }
   }
@@ -321,12 +323,17 @@ export default function Dashboard() {
         title: cleanTitle,
         description: cleanDescription,
       });
+      const synced = { ...patched, pending: false };
+      setTasks((prev) => prev.map((item) => (item._id === taskId ? synced : item)));
+      await putTaskLocal(synced);
       showNotice("Tarea actualizada.");
     } catch {
       await queue(op);
+      const pendingTask = { ...patched, pending: true };
       setTasks((prev) =>
-        prev.map((item) => (item._id === taskId ? { ...item, pending: true } : item))
+        prev.map((item) => (item._id === taskId ? pendingTask : item))
       );
+      await putTaskLocal(pendingTask);
       showNotice("Edicion pendiente de sincronizar.");
     }
   }
@@ -353,12 +360,17 @@ export default function Dashboard() {
 
     try {
       await api.put(`/tasks/${task._id}`, { status: newStatus });
+      const synced = { ...updated, pending: false };
+      setTasks((prev) => prev.map((item) => (item._id === task._id ? synced : item)));
+      await putTaskLocal(synced);
       showNotice("Estado actualizado.");
     } catch {
       await queue(op);
+      const pendingTask = { ...updated, pending: true };
       setTasks((prev) =>
-        prev.map((item) => (item._id === task._id ? { ...item, pending: true } : item))
+        prev.map((item) => (item._id === task._id ? pendingTask : item))
       );
+      await putTaskLocal(pendingTask);
       showNotice("Estado pendiente de sincronizar.");
     }
   }
